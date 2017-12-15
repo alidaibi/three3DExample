@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js canvas - interactive - cubes tween</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				font-family: Monospace;
+				background-color: #f0f0f0;
+				margin: 0px;
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="container"></div>
+		<script src="js/three.min.js"></script>
+
+		<script src="js/Projector.js"></script>
+		<script src="js/CanvasRenderer.js"></script>
+
+		<script src="js/stats.min.js"></script>
+		<script src="js/tween.min.js"></script>
+
+		<script>
+			
+			var app = {
+				init: function(){
+					var self = this;
+					var renderer, scene, camera, stats, tween;
+					var WIDTH = window.innerWidth;
+					var HEIGHT = window.innerHeight;
+					var container = document.getElementById('container');
+					camera = new THREE.PerspectiveCamera(75, WIDTH/HEIGHT, 1, 50000 );
+					camera.position.set(0, 0, 1e3);
+					// camera.position.z = 150;
+					scene = new THREE.Scene();
+					scene.fog = new THREE.FogExp2(0x05050c, 0.0005);
+
+					// add light
+					// var light = new THREE.DirectionalLight( 0xffffff );
+					// light.position.set( 0, 200, 0 );
+					// scene.add( light );
+
+					self.addObjs();
+
+
+					renderer = new THREE.WebGLRenderer();
+					renderer.setClearColor(scene.fog.color);
+					renderer.setPixelRatio(window.devicePixelRatio);
+					renderer.setSize(WIDTH, HEIGHT);
+					
+					container.appendChild(renderer.domElement);
+
+					stats = new Stats();
+					container.appendChild(stats.dom);
+
+					window.addEventListener( 'resize', function(e){
+						self.resize();
+					}, false);
+
+					self.scene = scene;
+					self.camera = camera;
+					self.renderer = renderer;
+
+					window.requestAnimationFrame(function(time){
+						TWEEN.update();
+						stats.update();
+						self.update(time);
+						window.requestAnimationFrame(arguments.callee)
+					});
+		
+
+				},
+				addObjs: function(){
+					var self = this;
+					var loader = new THREE.JSONLoader();
+					var obj1, obj2, loaded;
+					var n = [700, 700, 1e3, 1200, 1500, 500];
+					var r = [[72, 30, 60], [0, -30, 0], [0, 0, 0], [90, 180, 0], [10, 0, 0], [0, 0, 0]];
+					var o = [[-400, 100, 0], [400, 0, 0], [-500, 150, 0], [0, 0, 0], [0, -500, 0], [0, 0, 0]];
+					var c = 0;
+					loader.load('game.json', function(obj) {
+						obj.center();
+                        obj.normalize();
+                        obj.rotateX(3.14 * r[0][0] / 180),
+                        obj.rotateY(3.14 * r[0][1] / 180),
+                        obj.rotateZ(3.14 * r[0][2] / 180),
+                        obj.scale(n[0], n[0], n[0]);
+                        
+                        obj.translate(o[0][0], o[0][1], o[0][2]);
+						obj1 = obj;
+						if(obj1 && obj2 && !loaded) {
+							loaded = true;
+							self.addPartice(obj1, obj2);
+						}
+					});	
+					c = 1;
+					loader.load('ac.json', function(obj) {
+						obj.center();
+                        obj.normalize();
+                        obj.rotateX(3.14 * r[1][0] / 180),
+                        obj.rotateY(3.14 * r[1][1] / 180),
+                        obj.rotateZ(3.14 * r[1][2] / 180),
+                        obj.scale(n[1], n[1], n[1]);
+                        
+                        obj.translate(o[1][0], o[1][1], o[1][2]);
+						obj2 = obj;
+						if(obj1 && obj2 && !loaded) {
+							loaded = true;
+							self.addPartice(obj1, obj2);
+						}
+					});	
+				},
+				addPartice: function(obj1, obj2){
+					var moreObj, lessObj;
+					if(obj1.vertices.length > obj2.vertices.length) {
+						moreObj = obj1;
+						lessObj = obj2;
+					} else {
+						moreObj = obj2;
+						lessObj = obj1;
+					}
+					var position1 = [];
+					var position2 = [];
+					var moreLen = moreObj.vertices.length;
+					var lessLen = lessObj.vertices.length;
+					moreObj.vertices.forEach(function(o){
+						position1.push(o.clone());
+					});
+					lessObj.vertices.forEach(function(o){
+						position2.push(o.clone());
+					});
+					for(var i = lessLen, j = 0; i < moreLen; i++, j++) {
+						j %= lessLen;
+						position2[i] = position2[j];
+					}
+
+					
+					var texture  = new THREE.TextureLoader().load('gradient.png');
+					var material = new THREE.PointsMaterial({size:5, map:texture,alphaTest: .1, opacity: 1, blending:THREE.AdditiveBlending, depthTest: true, transparent:true});
+					var particleSystem = new THREE.Points(moreObj, material);
+
+
+
+					var pos = {val: 1};
+					tween = new TWEEN.Tween(pos).to({val: 0}, 2000).easing(TWEEN.Easing.Quadratic.InOut).delay(1000).onUpdate(callback);
+					tweenBack = new TWEEN.Tween(pos).to({val: 1}, 2000).easing(TWEEN.Easing.Quadratic.InOut).delay(1000).onUpdate(callback);
+					tween.chain(tweenBack);
+					tweenBack.chain(tween);
+					tween.start();
+
+					function callback(){
+						var val = this.val;
+						var particles = particleSystem.geometry.vertices;
+						for(var i = 0; i < particles.length; i++) {
+							var pos = particles[i];
+							pos.x = position1[i].x * val + position2[i].x * (1-val);
+							pos.y = position1[i].y * val + position2[i].y * (1-val);
+							pos.z = position1[i].z * val + position2[i].z * (1-val);
+						}
+						particleSystem.geometry.verticesNeedUpdate = true;
+					}
+
+					this.scene.add(particleSystem);
+					this.particleSystem = particleSystem;		
+				},
+				resize: function(){
+					this.camera.aspect = window.innerWidth/window.innerHeight;
+					this.camera.updateProjectionMatrix();
+
+					this.renderer.setSize(window.innerWidth, window.innerHeight);
+				},
+				update: function(time){
+					var time = Date.now() * 0.005;
+					if(this.particleSystem) {
+						// this.particleSystem.rotation.y = 0.01 * time;
+
+					}
+					
+					this.renderer.render(this.scene, this.camera);
+				}
+			}
+			app.init();
+		</script>
+
+	</body>
+</html>
