@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js canvas - interactive - cubes tween</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				font-family: Monospace;
+				background-color: #f0f0f0;
+				margin: 0px;
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="container"></div>
+		<script src="js/three.js"></script>
+
+        <script src="js/ConvolutionShader.js"></script>
+        <script src="js/CopyShader.js"></script>
+        <script src="js/FilmShader.js"></script>
+        <script src="js/FocusShader.js"></script>
+
+        <script src="js/EffectComposer.js"></script>
+        <script src="js/MaskPass.js"></script>
+        <script src="js/RenderPass.js"></script>
+        <script src="js/BloomPass.js"></script>
+        <script src="js/ShaderPass.js"></script>
+        <script src="js/FilmPass.js"></script>
+
+
+
+		<!--<script src="js/Projector.js"></script>-->
+		<!--<script src="js/CanvasRenderer.js"></script>-->
+
+		<script src="js/stats.min.js"></script>
+		<script src="js/tween.min.js"></script>
+
+		<script>
+			
+			var app = {
+				init: function(){
+					var self = this;
+					var renderer, scene, camera, stats, tween;
+					var WIDTH = window.innerWidth;
+					var HEIGHT = window.innerHeight;
+					var container = document.getElementById('container');
+                    self.mods = [];
+					camera = new THREE.PerspectiveCamera(75, WIDTH/HEIGHT, 1, 50000 );
+					camera.position.set(0, 0, 1e3);
+					scene = new THREE.Scene();
+					scene.fog = new THREE.FogExp2(0x05050c, 0.0005);
+                    /*
+                            precision:"highp", //着色精度选择 
+                            alpha:true, //是否可以设置背景色透明 
+                            premultipliedAlpha:false, 
+                            stencil:false,
+                            preserveDrawingBuffer: true, //是否保存绘图缓冲
+                            maxLights:1 //maxLights:最大灯光数
+                    */
+					renderer = new THREE.WebGLRenderer({
+                            antialias: true, //是否开启反锯齿 
+                            precision: "highp",
+                            alpha: true
+                    });
+                    renderer.setClearColor(scene.fog.color); 
+                    // renderer.setPixelRatio(window.devicePixelRatio); 
+                    renderer.setSize(WIDTH, HEIGHT);
+                    var parameters = {
+                            minFilter: THREE.LinearFilter,
+                            magFilter: THREE.LinearFilter,
+                            format: THREE.RGBAFormat, 
+                            stencilBuffer: false
+                    }; 
+                    // var renderTarget = new THREE.WebGLRenderTarget(WIDTH, HEIGHT, parameters);
+
+                    
+                    
+                    
+					
+					container.appendChild(renderer.domElement);
+
+					stats = new Stats();
+					container.appendChild(stats.dom);
+
+					window.addEventListener( 'resize', function(e){
+						self.resize();
+					}, false);
+                    var ix = 1;
+                    window.addEventListener('click', function(e) {
+                        if(ix === 6) {
+                            ix = 0;
+                        }
+                        self.toggleParticle(ix);
+                        ix++;
+                    }, false);
+                    
+					self.addObjs();
+                    var renderModel = new THREE.RenderPass( scene, camera );
+                    var effectBloom = new THREE.BloomPass( 0.75 );
+                    var effectFilm = new THREE.FilmPass( 0.5, 0.5, 1448, false );
+
+                    effectFocus = new THREE.ShaderPass( THREE.FocusShader );
+
+                    effectFocus.uniforms[ "screenWidth" ].value = window.innerWidth;
+                    effectFocus.uniforms[ "screenHeight" ].value = window.innerHeight;
+
+                    effectFocus.renderToScreen = true;
+
+                    composer = new THREE.EffectComposer( renderer );
+
+                    composer.addPass( renderModel );
+                    composer.addPass( effectBloom );
+                    composer.addPass( effectFilm );
+                    composer.addPass( effectFocus );
+
+                    self.scene = scene;
+                    self.camera = camera;
+                    self.renderer = renderer;
+                    self.composer = composer;
+
+					window.requestAnimationFrame(function(time){
+						TWEEN.update();
+						stats.update();
+						self.update(time);
+						window.requestAnimationFrame(arguments.callee)
+					});
+				},
+				addObjs: function(){
+					var self = this;
+					var loader = new THREE.JSONLoader();
+                    // var e = new THREE.TessellateModifier(.01);
+					var loaded = 0;
+					var n = [700, 700, 1e3, 1200, 1500, 500];
+					var r = [[72, 30, 60], [0, -30, 0], [0, 0, 0], [90, 180, 0], [10, 0, 0], [0, 0, 0]];
+					var o = [[-400, 100, 0], [400, 0, 0], [-500, 150, 0], [0, 0, 0], [0, -500, 0], [0, 0, 0]];
+                    var mod = ['game.json', 'ac.json', 'book.json', 'movie.json', 'kv.json', 'qr.json'];
+					mod.forEach(function(item, index){
+                        loader.load(item, function(obj) {
+                            // e.modify(obj);
+                            obj.center();
+                            obj.normalize();
+                            obj.rotateX(3.14 * r[index][0] / 180),
+                            obj.rotateY(3.14 * r[index][1] / 180),
+                            obj.rotateZ(3.14 * r[index][2] / 180),
+                            obj.scale(n[index], n[index], n[index]);
+                            obj.translate(o[index][0], o[index][1], o[index][2]);
+                            var l = [];
+                            obj.vertices.forEach(function() {
+                                l.push(new THREE.Color("hsl(160, 100%, 100%)"));
+                            });
+                            for (var u = 0; u < obj.faces.length; u++) {
+                                var p = obj.faces[u];
+                                l[p.a] = p.vertexColors[0] || new THREE.Color("hsl(" + ((160 + 0) * Math.random()) + ", 100%, 100%)");
+                                l[p.b] = p.vertexColors[1] || new THREE.Color("hsl(" + ((160 + 0) * Math.random()) + ", 100%, 100%)");
+                                l[p.c] = p.vertexColors[2] || new THREE.Color("hsl(" + ((160 + 0) * Math.random()) + ", 100%, 100%)");
+                            }
+                            obj.colors = l;
+                            self.mods[index] = obj;
+                            loaded++;
+                            if(loaded === mod.length) {
+                                self.addPartice();
+                            }
+                        });	
+                    });
+					
+				},
+				addPartice: function(){
+					var self = this;
+                    var maxLen = Math.max.apply(null, self.mods.map(function(e){
+                        return e.vertices.length;
+                    }));
+                    var geometry = new THREE.Geometry();
+                    for(var i = 0; i < maxLen; i++) {
+                        geometry.vertices.push(new THREE.Vector3(0, 0, 0));
+                        geometry.colors.push(new THREE.Color("hsl(" + (180 + 10 * Math.random()) + ", 100%, 100%)"));
+                    }
+					var texture  = new THREE.TextureLoader().load('gradient.png');
+					var material = new THREE.PointsMaterial({size: 5, map:texture,alphaTest: .1, opacity: 1, blending:THREE.AdditiveBlending, depthTest: true, transparent:true, color: 0xffffff});
+					var particleSystem = new THREE.Points(geometry, material);
+                    var object3d = new THREE.Object3D();
+                    // particleSystem.position.z = -1 * 1000;
+                    
+                    this.scene.add(object3d);
+                    object3d.add(particleSystem);
+					this.particleSystem = particleSystem;		
+                    
+                    
+                    self.toggleParticle(0);
+				},
+                toggleParticle: function(x) {
+                    var self = this;
+                    var mod = self.mods[x];
+                    var modLen = mod.vertices.length;
+                    // self.particleSystem.geometry.vertices = mod.vertices;
+                    // console.log(modLen, self.particleSystem.geometry.vertices.length);
+                    self.particleSystem.geometry.vertices.forEach(function(v, vIndex) {
+                        var n = self.particleSystem.geometry.colors[vIndex];
+                        var r = vIndex % modLen;
+                        var p = mod.vertices[r];
+                        var a = mod.colors[r] || new THREE.Color("hsl(" + (160 + 3 * Math.random()) + ", 100%, 100%)");
+                        var s = [n.r, n.g, n.b];
+                        var c = [a.r - s[0], a.g - s[1], a.b - s[2]];
+                        v.tweenx = v.tweenx || (new TWEEN.Tween(v).easing(TWEEN.Easing.Exponential.In).onUpdate(function(){
+                            n.r = s[0] + c[0] * v;
+                            n.g = s[1] + c[1] * v;
+                            n.b = s[2] + c[2] * v;
+                            self.particleSystem.geometry.verticesNeedUpdate = true;
+                        }));
+                        v.tweenx.to({
+                            x: p.x,
+                            y: p.y,
+                            z: p.z
+                        }, 1000).delay(.5 * 1000 * Math.random()).start();
+                    });
+    
+                },
+				resize: function(){
+					this.camera.aspect = window.innerWidth/window.innerHeight;
+					this.camera.updateProjectionMatrix();
+                    
+					this.renderer.setSize(window.innerWidth, window.innerHeight);
+				},
+				update: function(time){
+					var time = Date.now() * 0.005;
+					if(this.particleSystem) {
+						// this.particleSystem.rotation.y = 0.01 * time;
+					}
+				
+					this.composer.render();
+                    // this.renderer.render(this.scene, this.camera);
+				}
+			}
+			app.init();
+		</script>
+
+	</body>
+</html>
